@@ -1,0 +1,156 @@
+﻿using Api_BarberShop.Context;
+using Api_BarberShop.Model;
+using Api_BarberShop.Servicios.IServices;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cryptography.KeyDerivation;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Text;
+
+namespace Api_BarberShop.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class UserController : Controller
+    {
+        private readonly IUserServices _userservices;
+        private readonly AppDbContext _context;
+        private readonly IEmailServices _emailservices;
+
+        public UserController(IUserServices services, AppDbContext dbContext, IEmailServices emailserves)
+        {
+            _context = dbContext;
+            _userservices = services;
+            _emailservices = emailserves;
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        {
+            var token = await _userservices.Authenticate(request.Name, request.Password);
+
+            if (token == null)
+
+                return Unauthorized(new { message = "Credenciales incorrectas" });
+
+            return Ok(new { token });
+
+        }
+
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] User request)
+        {
+            if (request == null)
+            {
+                return BadRequest(new { message = "Request is null" });
+            }
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+            var user = new User
+            {
+                Name = request.Name,
+                Email = request.Email,
+                Password = request.Password,
+                ConfirmPassword = request.ConfirmPassword,
+                ResetPasswordToken = null,
+                ResetPasswordExpiry = null
+            };
+
+            var result = await _userservices.RegisterUser(user);
+
+            if (!result)
+                return StatusCode(500, new { message = "Hubo un error al registrar el usuario " });
+
+            return Ok(new { message = "Usuario registrado con éxito" });
+        }
+
+        [HttpPost("forget-password")]
+        public async Task<IActionResult> ForgetPassword([FromBody] ForgetPasswordDto model)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
+            if (user == null)
+                return BadRequest("Usuario no encontrado");
+
+            var token = Guid.NewGuid().ToString();
+                user.ResetPasswordToken = token;
+            user.ResetPasswordExpiry = DateTime.UtcNow.AddHours(1);
+
+            await _context.SaveChangesAsync();
+
+            await _emailservices.SendPasswordResetEmail(user.Email, token);
+
+            return Ok("Correo de recuperación enviado");
+        }
+
+        public class PasswordHasher
+        {
+            public string HashPassword(string password)
+            {
+                byte[] salt = Encoding.ASCII.GetBytes("SaltySecret");
+
+                return Convert.ToBase64String(KeyDerivation.Pbkdf2(
+                    password: password,
+                    salt: salt,
+                    prf: KeyDerivationPrf.HMACSHA256,
+                    iterationCount: 10000,
+                    numBytesRequested: 256 / 8
+                ));
+            }
+
+            public bool VerifyPassword(string password, string hashedPassword)
+            {
+                byte[] salt = Encoding.ASCII.GetBytes("SaltySecret");
+
+                string hashedInput = Convert.ToBase64String(KeyDerivation.Pbkdf2(
+                    password: password,
+                    salt: salt,
+                    prf: KeyDerivationPrf.HMACSHA256,
+                    iterationCount: 10000,
+                    numBytesRequested: 256 / 8
+                ));
+
+                return hashedInput == hashedPassword;
+            }
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto model)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.ResetPasswordToken == model.Token && u.ResetPasswordExpiry > DateTime.UtcNow);
+            if (user == null) 
+                return BadRequest("Token invalido o expirado");
+
+            var passwordHasher = new PasswordHasher();
+            user.Password = passwordHasher.HashPassword(model.NewPassword);
+            user.ConfirmPassword = passwordHasher.HashPassword(model.NewConfirmPassword);
+            user.ResetPasswordToken = null;
+            user.ResetPasswordExpiry = null;
+
+            await _context.SaveChangesAsync();
+
+            return Ok("Contraseña cambiada exitosamente");
+        }
+
+        [HttpPost("logout")]
+        [Authorize]
+        public async Task<IActionResult> Logout()
+        {
+            var token = Request.Headers["Authorization"].ToString().Replace("Bearer ", "");
+
+            if (string.IsNullOrEmpty(token))
+            {
+                return BadRequest(new { message = "Token no proporcionado" });
+            }
+
+            bool result = await _userservices.Logout(token);
+            if (result)
+            {
+                return Ok(new { message = "Sesión cerrada correctamente" });
+            }
+
+            return BadRequest(new { message = "Error al cerrar sesión" });
+        }
+    }
+}

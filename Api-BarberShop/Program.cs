@@ -19,6 +19,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IUserServices, UserServices>();
+builder.Services.AddScoped<IAppointmentServices, AppointmentServices>();
 
 var sendGridApiKey = builder.Configuration["SendGrid:ApiKey"];
 builder.Services.AddScoped<IEmailServices, EmailServices>(sp => new EmailServices(

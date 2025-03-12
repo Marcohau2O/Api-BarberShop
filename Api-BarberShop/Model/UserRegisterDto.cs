@@ -1,6 +1,6 @@
 ﻿namespace Api_BarberShop.Model
 {
-    public class User
+    public class UserRegisterDto
     {
         public int Id { get; set; }
         public string Name { get; set; }
@@ -12,8 +12,5 @@
         // Nuevas propiedades para la recuperación de contraseña
         public string? ResetPasswordToken { get; set; }
         public DateTime? ResetPasswordExpiry { get; set; }
-
-        public ICollection<Appointment> Appointments { get; set; } = new List<Appointment>();
     }
 }
-                      

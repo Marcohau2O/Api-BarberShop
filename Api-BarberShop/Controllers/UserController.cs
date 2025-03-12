@@ -1,6 +1,7 @@
 ﻿using Api_BarberShop.Context;
 using Api_BarberShop.Model;
 using Api_BarberShop.Servicios.IServices;
+using Api_BarberShop.Servicios.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using Microsoft.AspNetCore.Mvc;
@@ -27,18 +28,23 @@ namespace Api_BarberShop.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
+            var user = await _context.Users.SingleOrDefaultAsync(u => u.Name == request.Name);
+
+            if (user == null)
+                return Unauthorized(new { message = "Credenciales incorrectas" });
+
             var token = await _userservices.Authenticate(request.Name, request.Password);
 
             if (token == null)
 
                 return Unauthorized(new { message = "Credenciales incorrectas" });
 
-            return Ok(new { token });
+            return Ok(new { token, usertype = user.UserType, name = user.Name, UserId = user.Id });
 
         }
 
         [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] User request)
+        public async Task<IActionResult> Register([FromBody] UserRegisterDto request)
         {
             if (request == null)
             {
@@ -54,6 +60,7 @@ namespace Api_BarberShop.Controllers
                 Email = request.Email,
                 Password = request.Password,
                 ConfirmPassword = request.ConfirmPassword,
+                UserType = request.UserType,
                 ResetPasswordToken = null,
                 ResetPasswordExpiry = null
             };
@@ -151,6 +158,80 @@ namespace Api_BarberShop.Controllers
             }
 
             return BadRequest(new { message = "Error al cerrar sesión" });
+        }
+
+        [HttpGet("all")]
+        public async Task<ActionResult<IEnumerable<User>>> GetAllUsers()
+        {
+            var users = await _userservices.GetUsers();
+            return Ok(users);
+
+        }
+
+        [HttpGet("UserAppointments/{userId}")]
+        public async Task<IActionResult> GetUserAppointments(int userId)
+        {
+            var userWithAppointments = await _context.Users
+                .Include(u => u.Appointments)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (userWithAppointments == null)
+                return NotFound("Usuario no encontrado");
+
+            return Ok(new
+            {
+                userWithAppointments.Id,
+                userWithAppointments.Name,
+                userWithAppointments.Email,
+                Appointment = userWithAppointments.Appointments.Select(a => new
+                {
+                    a.Id,
+                    a.Date,
+                    a.Time,
+                    a.Status,
+                }).ToList()
+            });
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteUser(int id)
+        {
+            var user = await _context.Users.Include(u => u.Appointments)
+                                           .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (user == null)
+            {
+                return NotFound(new { message = "Usuario no encontrado" });
+            }
+
+            // Eliminar citas asociadas primero
+            _context.Appointments.RemoveRange(user.Appointments);
+
+            // Ahora eliminar el usuario
+            _context.Users.Remove(user);
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Usuario eliminado correctamente" });
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateUsr(int id, [FromBody] UpdateUserDto updatedUser)
+        {
+            var result = await _userservices.UpdateUser(id, updatedUser);
+            if (!result) return NotFound(new { message = "Usuario no encontrado" });
+            return Ok(new { message = "Usuario actualizado correctamente" });
+        }
+
+        [HttpGet("User/{id}")]
+        public async Task<IActionResult> GetUserDetails(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+                if (user == null)
+            {
+                return NotFound();
+            }
+            return Ok(user);
         }
     }
 }

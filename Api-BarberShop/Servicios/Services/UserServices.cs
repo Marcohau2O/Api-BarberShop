@@ -21,6 +21,11 @@ namespace Api_BarberShop.Servicios.Services
             _context = context;
             _config = config;
         }
+
+        public async Task<IEnumerable<User>> GetUsers()
+        {
+            return await _context.Users.ToListAsync();
+        }
         public async Task<string?> Authenticate(string name, string password)
         {
             var user = await _context.Users.SingleOrDefaultAsync(u => u.Name == name);
@@ -40,7 +45,11 @@ namespace Api_BarberShop.Servicios.Services
             var key = Encoding.ASCII.GetBytes(_config["JWT:Secret"]);
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new System.Security.Claims.ClaimsIdentity(new[] { new Claim("id", user.Id.ToString())}),
+                Subject = new System.Security.Claims.ClaimsIdentity(new[] 
+                { 
+                    new Claim("id", user.Id.ToString()),
+                    new Claim("usertype", user.UserType)
+                }),
                 Expires = DateTime.UtcNow.AddHours(1),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
@@ -113,6 +122,26 @@ namespace Api_BarberShop.Servicios.Services
             { 
                 return false; 
             }
+        }
+
+        public async Task<bool> UpdateUser(int id, UpdateUserDto updatedUser)
+        {
+            // Verificar si el usuario existe
+            var existingUser = await _context.Users.FindAsync(id);
+
+            if (existingUser == null)
+            {
+                // Si no se encuentra el usuario, retornar NotFound
+                return false;
+            }
+
+            existingUser.Name = updatedUser.Name;
+            existingUser.Email = updatedUser.Email;
+            existingUser.UserType = updatedUser.UserType;
+
+            _context.Users.Update(existingUser);
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }

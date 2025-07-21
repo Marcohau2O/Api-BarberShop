@@ -3,6 +3,7 @@ using Api_BarberShop.Model;
 using Api_BarberShop.Servicios.IServices;
 using Api_BarberShop.Servicios.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -95,6 +96,39 @@ namespace Api_BarberShop.Controllers
             return Ok(new { message = "Cita actualizada correctamente." });
         }
 
+        [HttpDelete("delete/{id}")]
+        public async Task<IActionResult> DeleteAppointment(int id)
+        {
+            var deleted = await _appointmentService.DeleteAppointmentAsync(id);
+            if (!deleted)
+            {
+                return NotFound("Cita no encontrada.");
+            }
+
+            return Ok(new { message = "Cita eliminada correctamente." });
+        }
+
+        [HttpGet("doctor/{doctorId}/citas")]
+        public async Task<IActionResult> GetAppointmentsForDoctor(int doctorId)
+        {
+            var citas = await _context.Appointments
+                .Where(c => c.DoctorId == doctorId)
+                .Include(c => c.User)
+                .Select(c => new AppointmentDetailDto
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Phone = c.Phone,
+                    Date = c.Date,
+                    Time = c.Time,
+                    Status = c.Status,
+                    UserName = c.User.Name
+                })
+                .ToListAsync();
+
+            return Ok(citas);
+        }
+
         // Enviar mensaje de WhatsApp
         //[HttpPost("sendWhatsAppMessage")]
         //public async Task<IActionResult> SendWhatsAppMessage([FromBody] WhatsAppMessageRequest request)
@@ -130,10 +164,10 @@ namespace Api_BarberShop.Controllers
             public string Status { get; set; }
         }
 
-        //public class WhatsAppMessageRequest
-        //{
-        //    public string Phone { get; set; } // Número del cliente, formato internacional: "521XXXXXXXXXX"
-        //    public string Message { get; set; }
-        //}
+        public class WhatsAppMessageRequest
+        {
+            public string Phone { get; set; } // Número del cliente, formato internacional: "521XXXXXXXXXX"
+            public string Message { get; set; }
+        }
     }
 }

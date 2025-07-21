@@ -28,18 +28,18 @@ namespace Api_BarberShop.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            var user = await _context.Users.SingleOrDefaultAsync(u => u.Name == request.Name);
+            var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null)
                 return Unauthorized(new { message = "Credenciales incorrectas" });
 
-            var token = await _userservices.Authenticate(request.Name, request.Password);
+            var token = await _userservices.Authenticate(request.Email, request.Password);
 
             if (token == null)
 
                 return Unauthorized(new { message = "Credenciales incorrectas" });
 
-            return Ok(new { token, usertype = user.UserType, name = user.Name, UserId = user.Id });
+            return Ok(new { token, usertype = user.UserType, name = user.Name, UserId = user.Id, email = user.Email });
 
         }
 
@@ -232,6 +232,17 @@ namespace Api_BarberShop.Controllers
                 return NotFound();
             }
             return Ok(user);
+        }
+
+        [HttpGet("doctors")]
+        public async Task<IActionResult> GetAllDoctors()
+        {
+            var doctors = await _context.Users
+                .Where(u => u.UserType == "doctor")
+                .Select(u => new { u.Id, u.Name })
+                .ToListAsync();
+
+            return Ok(doctors);
         }
     }
 }

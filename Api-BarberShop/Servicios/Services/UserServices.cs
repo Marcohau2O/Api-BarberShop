@@ -26,9 +26,9 @@ namespace Api_BarberShop.Servicios.Services
         {
             return await _context.Users.ToListAsync();
         }
-        public async Task<string?> Authenticate(string name, string password)
+        public async Task<string?> Authenticate(string email, string password)
         {
-            var user = await _context.Users.SingleOrDefaultAsync(u => u.Name == name);
+            var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == email);
 
             if (user == null)
                 return null;
@@ -48,6 +48,8 @@ namespace Api_BarberShop.Servicios.Services
                 Subject = new System.Security.Claims.ClaimsIdentity(new[] 
                 { 
                     new Claim("id", user.Id.ToString()),
+                    new Claim("email", user.Email),
+                    new Claim("name", user.Name),
                     new Claim("usertype", user.UserType)
                 }),
                 Expires = DateTime.UtcNow.AddHours(1),
@@ -55,7 +57,20 @@ namespace Api_BarberShop.Servicios.Services
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
 
-            return tokenHandler.WriteToken(token);
+            var tokenString = tokenHandler.WriteToken(token);
+
+            var userToken = new UserToken
+            {
+                UserId = user.Id,
+                Token = tokenString,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddHours(1)
+            };
+
+            _context.UserTokens.Add(userToken);
+            await _context.SaveChangesAsync();
+
+            return tokenString;
         }
 
         public class PasswordHasher
@@ -109,14 +124,19 @@ namespace Api_BarberShop.Servicios.Services
         {
             try
             {
-                var revokedToken = new RevokedToken
-                {
-                    Token = token,
-                    RevokedAt = DateTime.UtcNow
-                };
+                var tokenExistente = await _context.UserTokens
+                    .FirstOrDefaultAsync(t => t.Token == token);
 
+                if (tokenExistente == null)
+                {
+                    return false;
+                }
+
+                _context.UserTokens.Remove(tokenExistente);
                 await _context.SaveChangesAsync();
+
                 return true;
+
             }
             catch 
             { 

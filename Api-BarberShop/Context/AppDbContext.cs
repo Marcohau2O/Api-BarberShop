@@ -9,7 +9,7 @@ namespace Api_BarberShop.Context
 
         public DbSet<User> Users { get; set; }
         public DbSet<Appointment> Appointments { get; set; }
-        public DbSet<RevokedToken> RevokedTokens { get; set; }
+        public DbSet<UserToken> UserTokens { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

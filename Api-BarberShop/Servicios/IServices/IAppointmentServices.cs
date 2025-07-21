@@ -10,5 +10,6 @@ namespace Api_BarberShop.Servicios.IServices
         Task<List<Appointment>> GetAppointmentsAsync();
         Task<Appointment> GetAppointmentByIdAsync(int id);
         Task<bool> UpdateAppointmentAsync(AppointmentDyTDtp appointment);
+        Task<bool> DeleteAppointmentAsync(int id);
     }
 }

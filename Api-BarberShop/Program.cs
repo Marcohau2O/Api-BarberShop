@@ -17,7 +17,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<IUserServices, UserServices>();
 builder.Services.AddScoped<IAppointmentServices, AppointmentServices>();
 
@@ -56,7 +56,7 @@ builder.Services.AddAuthentication(options =>
 
                 if (token != null)
                 {
-                    var isRevoked = await dbContext.RevokedTokens.AnyAsync(rt => rt.Token == token.RawData);
+                    var isRevoked = await dbContext.UserTokens.AnyAsync(rt => rt.Token == token.RawData);
                     if (isRevoked)
                     {
                         context.Fail("Token revocado");
